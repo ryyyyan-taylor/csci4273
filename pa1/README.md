@@ -6,7 +6,7 @@ Programming Assignment 1
 ```make``` will compile server and client source code into server.o and client.o binaries in their respective directories
 
 ```make clean``` will delete both binaries  
-<br><br>
+<br>
 
 Once compiled, run the server using  
 ```./server/server.o <PORT NUMBER>```  
