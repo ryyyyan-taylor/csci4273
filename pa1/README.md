@@ -2,10 +2,17 @@ Ryan Taylor
 CSCI 4273: Network Systems  
 Programming Assignment 1  
 
-# Compiling
+# Compiling / Running
 ```make``` will compile server and client source code into server.o and client.o binaries in their respective directories
 
-```make clean``` will delete both binaries
+```make clean``` will delete both binaries  
+<br><br>
+
+Once compiled, run the server using  
+```./server/server.o <PORT NUMBER>```  
+
+and the client using  
+```./client/client.o <SERVER IP> <PORT NUMBER>```
 
 # Available Commands
 On the client side, the commands available to the user are:
