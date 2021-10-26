@@ -25,11 +25,11 @@
 
 
 // colored outputs for the server operations
-#define MSGERRR "\x1b[31m"
-#define MSGSUCC "\x1b[32m"
-#define MSGNORM "\x1b[0m"
-#define MSGTERM "\x1b[35m"
-#define MSGWARN "\x1b[33m"
+#define COLERR "\x1b[31m"
+#define COLSUCC "\x1b[32m"
+#define COLNORM "\x1b[0m"
+#define COLTERM "\x1b[35m"
+#define COLWARN "\x1b[33m"
 
 
 // opening function declarations
@@ -37,7 +37,6 @@ int open_listenfd(int port);
 void echo(int connfd);
 void *thread(void *vargp);
 
-//
 int checkValidURL(const char *urlarg);
 int checkValidVER(const char *verarg);
 const char *fnameExtension(const char *fname);
@@ -95,9 +94,9 @@ void echo(int connfd) {
     char error500msg[] = "HTTP/1.1 500 Internal Server Error\r\nContent-Type:text/plain\r\nContent-Length:0\r\n\r\n";
 
     n = read(connfd, buf, MAXLINE);
-    printf(MSGSUCC "server received the following request:\n%s" MSGSUCC "\n", buf);
+    printf(COLSUCC "server received request:\n%s" COLSUCC "\n", buf);
 
-    printf(MSGWARN "PARSING" MSGNORM "\n");
+    printf(COLWARN "PARSING" COLNORM "\n");
     char *token1 = strtok(buf, " ");
     size_t tk1len = strlen(token1);
     strncpy(metBuf, token1, tk1len);
@@ -112,7 +111,7 @@ void echo(int connfd) {
 
     bzero(buf, MAXLINE);
 
-    printf(MSGSUCC "GETTING FILE" MSGNORM "\n");
+    printf(COLSUCC "FILE GET" COLNORM "\n");
     FILE *fp = NULL;
 
     if (checkValidVER(verBuf))
@@ -130,38 +129,39 @@ void echo(int connfd) {
     }
 
     if (validURL && validVER) {
-        printf(MSGTERM "VALID URL AND VERSION" MSGNORM "\n");
+        printf(COLTERM "VALID URL AND VERSION" COLNORM "\n");
         strcat(dotURLbuf, ".");
         strcat(dotURLbuf, urlBuf);
-        printf(MSGTERM "dotURLbuf: %s" MSGTERM "\n", dotURLbuf);
+        printf(COLTERM "dotURLbuf: %s" COLTERM "\n", dotURLbuf);
 
         if (!strcmp(dotURLbuf, "./")) {
-            printf(MSGTERM "DEFAULT WEBPAGE" MSGNORM "\n");
+            printf(COLTERM "DEFAULT WEBPAGE" COLNORM "\n");
             fp = fopen("index.html", "rb");
 
-            printf(MSGSUCC "READING FILE" MSGNORM "\n");
+            printf(COLSUCC "READING FILE" COLNORM "\n");
             fseek(fp, 0L, SEEK_END);
             n = ftell(fp);
             rewind(fp);
-            printf(MSGSUCC "FILE READ" MSGNORM "\n");
+            printf(COLSUCC "FILE READ" COLNORM "\n");
 
             strcpy(ftype, "html");
-            printf(MSGTERM "ftype: %s" MSGNORM "\n", ftype);
+            printf(COLTERM "ftype: %s" COLNORM "\n", ftype);
         } else if (fp = fopen(dotURLbuf, "rb")) {
-            printf(MSGSUCC "READING FILE" MSGNORM "\n");
+            printf(COLSUCC "READING FILE" COLNORM "\n");
             fseek(fp, 0L, SEEK_END);
             n = ftell(fp);
             rewind(fp);
-            printf(MSGSUCC "FILE READ" MSGNORM "\n");
+            printf(COLSUCC "FILE READ" COLNORM "\n");
             strcpy(ftype, fnameExtension(urlBuf));
-            printf(MSGTERM "ftype: %s" MSGNORM "\n", ftype);
+            printf(COLTERM "ftype: %s" COLNORM "\n", ftype);
         } else {
-            printf(MSGERRR "FILE DOES NOT EXIST" MSGNORM "\n");
+            printf(COLERR "FILE DOES NOT EXIST" COLNORM "\n");
             error500 = 1;
         }
 
         // if no error
         if (error500 == 0) {
+            // load correct file type
             // http
             if (!strcmp(ftype, "html")) strcpy(contentType, "text/html");
             //txt
@@ -170,16 +170,16 @@ void echo(int connfd) {
             else if (!strcmp(ftype, "png")) strcpy(contentType, "image/png");
             // gif
             else if (!strcmp(ftype, "gif")) strcpy(contentType, "image/gif");
-            // jpf
+            // jpg
             else if (!strcmp(ftype, "jpg")) strcpy(contentType, "image/jpg");
             // css
             else if (!strcmp(ftype, "css")) strcpy(contentType, "text/css");
             // javascript
             else if (!strcmp(ftype, "js")) strcpy(contentType, "application/java");
             // default
-            else printf(MSGERRR "NOT A VALID FILETYPE" MSGNORM "\n");
+            else printf(COLERR "NOT A VALID FILETYPE" COLNORM "\n");
 
-            printf(MSGTERM "content requested: %s" MSGNORM "\n", contentType);
+            printf(COLTERM "content requested: %s" COLNORM "\n", contentType);
 
             char *filebuff = malloc(n);
             fread(filebuff, 1, n, fp);
@@ -188,37 +188,28 @@ void echo(int connfd) {
             sprintf(tempbuff, "HTTP/1.1 200 Document Follows\r\nContent-Type:%s\r\nContent-Length:%ld\r\n\r\n", contentType, n);
 
             char *httpmsg = malloc(n + strlen(tempbuff));
-            printf(MSGTERM "httpmsg: %s" MSGNORM "\n", httpmsg);
+            printf(COLTERM "httpmsg: %s" COLNORM "\n", httpmsg);
             sprintf(httpmsg, "%s", tempbuff);
             memcpy(httpmsg + strlen(tempbuff), filebuff, n);
             n += strlen(tempbuff);
 
-            //printf(MSGTERM"server returning a http message with the following content.\n%s" MSGNORM "\n", httpmsg);
+            //printf(COLTERM"server returning a http message with the following content.\n%s" COLNORM "\n", httpmsg);
             write(connfd, httpmsg, n);
 
         // if found error
         } else {
-            printf(MSGERRR "SENDING ERROR MESSAGE" MSGNORM "\n");
+            printf(COLERR "SENDING ERROR MESSAGE" COLNORM "\n");
             n = strlen(error500msg);
             write(connfd, error500msg, n);
         }
 
     // default for invalid url or ver
     } else {
-        printf(MSGERRR "NOT VALID" MSGNORM "\n");
-        printf(MSGERRR "SENDING ERROR MESSAGE" MSGNORM "\n");
+        printf(COLERR "NOT VALID" COLNORM "\n");
+        printf(COLERR "SENDING ERROR MESSAGE" COLNORM "\n");
         n = strlen(error500msg);
         write(connfd, error500msg, n);
     }
-
-    // clear variables
-    bzero(buf, MAXLINE);
-    bzero(metBuf, SHORTBUF);
-    bzero(urlBuf, MAXLINE);
-    bzero(dotURLbuf, MAXLINE);
-    bzero(verBuf, SHORTBUF);
-    bzero(ftype, SHORTBUF);
-    bzero(contentType, SHORTBUF);
 }
 
 // fix filenames where necessary
