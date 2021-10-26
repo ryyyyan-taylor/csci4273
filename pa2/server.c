@@ -3,7 +3,8 @@
 // \__ \  __/ |   \ V /  __/ | | (__
 // |___/\___|_|    \_/ \___|_|(_)___|
 //
-// based on provided tcp echo server files
+// based on provided echo server files
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,15 +16,26 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <dirent.h>
 
 #define MAXLINE  8192  /* max text line length */
+#define SHORTBUF  256  /* max text line length */
 #define MAXBUF   8192  /* max I/O buffer size */
 #define LISTENQ  1024  /* second argument to listen() */
+
+#define MSGERRR "\x1b[31m"
+#define MSGSUCC "\x1b[32m"
+#define MSGNORM "\x1b[0m"
+#define MSGTERM "\x1b[35m"
+#define MSGWARN "\x1b[33m"
 
 int open_listenfd(int port);
 void echo(int connfd);
 void *thread(void *vargp);
-int loadContentType(char *buf, char *ext);
+int is_valid_URL(const char *urlarg);
+int is_valid_VER(const char *verarg);
+const char *get_fname_ext(const char *fname);
+
 
 int main(int argc, char **argv) {
     int listenfd, *connfdp, port, clientlen = sizeof(struct sockaddr_in);
@@ -56,20 +68,204 @@ void *thread(void *vargp) {
     return NULL;
 }
 
-/*
- * echo - read and echo text lines until client closes connection
- */
+
+
 void echo(int connfd) {
     size_t n;
     char buf[MAXLINE];
-    char httpmsg[] = "HTTP/1.1 200 Document Follows\r\nContent-Type:text/html\r\nContent-Length:32\r\n\r\n<html><h1>Hello CSCI4273 Course!</h1>";
+    char metbuf[SHORTBUF];
+    char urlbuf[MAXLINE];
+    char doturlbuf[MAXLINE];
+    char verbuf[SHORTBUF];
+    char ftype[SHORTBUF];
+    char contenttype[SHORTBUF];
+    char tempstr[MAXLINE];
+    char *dot = ".";
+    char httpmsggiven[] = "HTTP/1.1 200 Document Follows\r\nContent-Type:text/html\r\nContent-Length:32\r\n\r\n<html><h1>Hello CSCI4273 Course!</h1>";
+    int is_error500 = 0;
+    char error500msg[] = "HTTP/1.1 500 Internal Server Error\r\nContent-Type:text/plain\r\nContent-Length:0\r\n\r\n";
+    int is_validurl = 0;
+    int is_validver = 0;
+
+    bzero(buf, MAXLINE);
+    bzero(metbuf, SHORTBUF);
+    bzero(urlbuf, MAXLINE);
+    bzero(doturlbuf, MAXLINE);
+    bzero(verbuf, SHORTBUF);
+    bzero(ftype, SHORTBUF);
+    bzero(contenttype, SHORTBUF);
+    bzero(tempstr, MAXLINE);
 
     n = read(connfd, buf, MAXLINE);
-    printf("server received the following request:\n%s\n", buf);
-    strcpy(buf, httpmsg);
-    printf("server returning a http message with the following content.\n%s\n", buf);
-    write(connfd, buf, strlen(httpmsg));
+    printf(MSGSUCC "server received the following request:\n%s" MSGSUCC "\n", buf);
 
+    printf(MSGWARN "PARSING" MSGNORM "\n");
+    char *token1 = strtok(buf, " ");
+    size_t tk1len = strlen(token1);
+    strncpy(metbuf, token1, tk1len);
+
+    char *token2 = strtok(NULL, " ");
+    size_t tk2len = strlen(token2);
+    strncpy(urlbuf, token2, tk2len);
+
+    char *token3 = strtok(NULL, "\r\n");
+    size_t tk3len = strlen(token3);
+    strncpy(verbuf, token3, tk3len);
+
+    bzero(buf, MAXLINE);
+
+    printf(MSGSUCC "GETTING FILE" MSGNORM "\n");
+
+    FILE *fp = NULL;
+
+    if (is_valid_VER(verbuf))
+        is_validver = 1;
+
+    else {
+        is_validver = 0;
+        is_error500 = 1;
+    }
+
+    if (is_valid_URL(urlbuf))
+        is_validurl = 1;
+
+    else {
+        is_validurl = 0;
+        is_error500 = 1;
+    }
+
+    if (is_validurl && is_validver) {
+        printf(MSGTERM "VALID URL AND VERSION" MSGNORM "\n");
+        strcat(doturlbuf, dot);
+        strcat(doturlbuf, urlbuf);
+        printf(MSGTERM "doturlbuf: %s" MSGTERM "\n", doturlbuf);
+
+        if (!strcmp(doturlbuf, "./")) {
+            printf(MSGTERM "DEFAULT WEBPAGE" MSGNORM "\n");
+            fp = fopen("index.html", "rb");
+            printf(MSGSUCC "READING FILE" MSGNORM "\n");
+            fseek(fp, 0L, SEEK_END);
+            n = ftell(fp);
+            rewind(fp);
+            printf(MSGSUCC "FILE READ" MSGNORM "\n");
+            strcpy(ftype, "html");
+            printf(MSGTERM "ftype: %s" MSGNORM "\n", ftype);
+        } else if (fp = fopen(doturlbuf, "rb")) {
+            printf(MSGSUCC "READING FILE" MSGNORM "\n");
+            fseek(fp, 0L, SEEK_END);
+            n = ftell(fp);
+            rewind(fp);
+            printf(MSGSUCC "FILE READ" MSGNORM "\n");
+            strcpy(ftype, get_fname_ext(urlbuf));
+            printf(MSGTERM "ftype: %s" MSGNORM "\n", ftype);
+        } else {
+            printf(MSGERRR "FILE DOES NOT EXIST" MSGNORM "\n");
+            is_error500 = 1;
+        }
+
+        if (is_error500 == 0) {
+            if (!strcmp(ftype, "html")) {
+                /* set new ftype to text/html */
+                strcpy(contenttype, "text/html");
+            } else if (!strcmp(ftype, "txt")) {
+                /* set new ftype to text/plain */
+                printf(MSGTERM "TXT FILETYPE" MSGNORM "\n");
+                strcpy(contenttype, "text/plain");
+            } else if (!strcmp(ftype, "png")) {
+                /* set new ftype to image/png */
+                printf(MSGTERM "PNG FILETYPE" MSGNORM "\n");
+                strcpy(contenttype, "image/png");
+            } else if (!strcmp(ftype, "gif")) {
+                /* set new ftype to image/gif */
+                printf(MSGTERM "GIF FILETYPE" MSGNORM "\n");
+                strcpy(contenttype, "image/gif");
+            } else if (!strcmp(ftype, "jpg")) {
+                /* set new ftype to image/jpg */
+                printf(MSGTERM "JPG FILETYPE" MSGNORM "\n");
+                strcpy(contenttype, "image/jpg");
+            } else if (!strcmp(ftype, "css")) {
+                /* set new ftype to text/css */
+                printf(MSGTERM "CSS FILETYPE" MSGNORM "\n");
+                strcpy(contenttype, "text/css");
+            } else if (!strcmp(ftype, "js")) {
+                /* set new ftype to application/java */
+                printf(MSGTERM "JS FILETYPE" MSGNORM "\n");
+                strcpy(contenttype, "application/java");
+            } else
+                printf(MSGERRR "NOT A VALID FILETYPE" MSGNORM "\n");
+
+            printf(MSGTERM "content type: %s" MSGNORM "\n", contenttype);
+
+            char *filebuff = malloc(n);
+            fread(filebuff, 1, n, fp);
+
+            char tempbuff[MAXLINE];
+            sprintf(tempbuff, "HTTP/1.1 200 Document Follows\r\nContent-Type:%s\r\nContent-Length:%ld\r\n\r\n", contenttype, n);
+
+            char *httpmsg = malloc(n + strlen(tempbuff));
+            printf(MSGTERM "httpmsg: %s" MSGNORM "\n", httpmsg);
+            sprintf(httpmsg, "%s", tempbuff);
+            memcpy(httpmsg + strlen(tempbuff), filebuff, n);
+            n += strlen(tempbuff);
+
+            //printf(MSGTERM"server returning a http message with the following content.\n%s" MSGNORM "\n", httpmsg);
+            write(connfd, httpmsg, n);
+        } else {
+            /* file doesnt exist or something, have server ignore */
+            printf(MSGERRR "SENDING ERROR MESSAGE" MSGNORM "\n");
+            n = strlen(error500msg);
+            write(connfd, error500msg, n);
+        }
+    } else {
+        printf(MSGERRR "NOT VALID" MSGNORM "\n");
+        printf(MSGERRR "SENDING ERROR MESSAGE" MSGNORM "\n");
+        n = strlen(error500msg);
+        write(connfd, error500msg, n);
+    }
+
+    bzero(buf, MAXLINE);
+    bzero(metbuf, SHORTBUF);
+    bzero(urlbuf, MAXLINE);
+    bzero(doturlbuf, MAXLINE);
+    bzero(verbuf, SHORTBUF);
+    bzero(ftype, SHORTBUF);
+    bzero(contenttype, SHORTBUF);
+    bzero(tempstr, MAXLINE);
+}
+
+const char *get_fname_ext(const char *fname) {
+    const char *period = strrchr(fname, '.');
+
+    if (!period || period == fname)
+        return "";
+
+    return period + 1;
+}
+
+int is_valid_URL(const char *urlarg) {
+    int len_urlarg = strlen(urlarg);
+
+    if ((urlarg != NULL) && (urlarg[0] == '\0')) {
+        printf("urlarg is empty\n");
+        return 0;
+    } else
+        return 1;
+}
+
+int is_valid_VER(const char *verarg) {
+    if (strlen(verarg) == 0) return 0;
+
+    if ((verarg != NULL) && (verarg[0] == '\0')) {
+        printf("verarg is empty\n");
+        return 0;
+    } else if (strcmp(verarg, "HTTP/1.1") == 0)
+        return 1;
+
+    else if (strcmp(verarg, "HTTP/1.0") == 0)
+        return 1;
+
+    else
+        return 0;
 }
 
 /*
@@ -105,34 +301,3 @@ int open_listenfd(int port) {
 
     return listenfd;
 } /* end open_listenfd */
-
-
-// load correct content type into buffer
-// separated into own function for cleanliness
-int loadContentType(char *buf, char *ext) {
-    if (!strcmp(ext, "html"))
-        strcpy(buf, "text/html");
-
-    else if (!strcmp(ext, "txt"))
-        strcpy(buf, "text/plain");
-
-    else if (!strcmp(ext, "png"))
-        strcpy(buf, "image/png");
-
-    else if (!strcmp(ext, "gif"))
-        strcpy(buf, "image/gif");
-
-    else if (!strcmp(ext, "jpg"))
-        strcpy(buf, "image/jpg");
-
-    else if (!strcmp(ext, "css"))
-        strcpy(buf, "text/css");
-
-    else if (!strcmp(ext, "js"))
-        strcpy(buf, "application/javascript");
-
-    else
-        return -1;
-
-    return 0;
-}
