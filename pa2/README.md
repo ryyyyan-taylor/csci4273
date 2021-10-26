@@ -7,6 +7,7 @@ Programming Assignment 2
 
 ## Building
 - provided in the root directory is a makefile, simply run ```make``` from the root to build the ```server``` file
+- if needed, run ```make clean``` and the server binary will be removed
 
 ## Running
 - from the ```www/``` directory, run ```../server <port>```
