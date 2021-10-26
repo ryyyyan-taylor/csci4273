@@ -10,3 +10,4 @@ Programming Assignment 2
 
 ## Running
 - from the ```www/``` directory, run ```../server <port>```
+- navigate to ```localhost:<port>``` on any web browser to access 
