@@ -76,30 +76,23 @@ void *thread(void *vargp) {
 
 
 void echo(int connfd) {
+    
     size_t n;
+
     char buf[MAXLINE];
-    char metbuf[SHORTBUF];
-    char urlbuf[MAXLINE];
-    char doturlbuf[MAXLINE];
-    char verbuf[SHORTBUF];
+    char metBuf[SHORTBUF];
+    char urlBuf[MAXLINE];
+    char dotURLbuf[MAXLINE];
+    char verBuf[SHORTBUF];
     char ftype[SHORTBUF];
     char contentType[SHORTBUF];
-    char tempstr[MAXLINE];
-    char *dot = ".";
-    char httpmsggiven[] = "HTTP/1.1 200 Document Follows\r\nContent-Type:text/html\r\nContent-Length:32\r\n\r\n<html><h1>Hello CSCI4273 Course!</h1>";
+
     int error500 = 0;
-    char error500msg[] = "HTTP/1.1 500 Internal Server Error\r\nContent-Type:text/plain\r\nContent-Length:0\r\n\r\n";
     int validURL = 0;
     int validVER = 0;
 
-    bzero(buf, MAXLINE);
-    bzero(metbuf, SHORTBUF);
-    bzero(urlbuf, MAXLINE);
-    bzero(doturlbuf, MAXLINE);
-    bzero(verbuf, SHORTBUF);
-    bzero(ftype, SHORTBUF);
-    bzero(contentType, SHORTBUF);
-    bzero(tempstr, MAXLINE);
+    char httpmsggiven[] = "HTTP/1.1 200 Document Follows\r\nContent-Type:text/html\r\nContent-Length:32\r\n\r\n<html><h1>Hello CSCI4273 Course!</h1>";
+    char error500msg[] = "HTTP/1.1 500 Internal Server Error\r\nContent-Type:text/plain\r\nContent-Length:0\r\n\r\n";
 
     n = read(connfd, buf, MAXLINE);
     printf(MSGSUCC "server received the following request:\n%s" MSGSUCC "\n", buf);
@@ -107,29 +100,29 @@ void echo(int connfd) {
     printf(MSGWARN "PARSING" MSGNORM "\n");
     char *token1 = strtok(buf, " ");
     size_t tk1len = strlen(token1);
-    strncpy(metbuf, token1, tk1len);
+    strncpy(metBuf, token1, tk1len);
 
     char *token2 = strtok(NULL, " ");
     size_t tk2len = strlen(token2);
-    strncpy(urlbuf, token2, tk2len);
+    strncpy(urlBuf, token2, tk2len);
 
     char *token3 = strtok(NULL, "\r\n");
     size_t tk3len = strlen(token3);
-    strncpy(verbuf, token3, tk3len);
+    strncpy(verBuf, token3, tk3len);
 
     bzero(buf, MAXLINE);
 
     printf(MSGSUCC "GETTING FILE" MSGNORM "\n");
     FILE *fp = NULL;
 
-    if (checkValidVER(verbuf))
+    if (checkValidVER(verBuf))
         validVER = 1;
     else {
         validVER = 0;
         error500 = 1;
     }
 
-    if (checkValidURL(urlbuf))
+    if (checkValidURL(urlBuf))
         validURL = 1;
     else {
         validURL = 0;
@@ -138,11 +131,11 @@ void echo(int connfd) {
 
     if (validURL && validVER) {
         printf(MSGTERM "VALID URL AND VERSION" MSGNORM "\n");
-        strcat(doturlbuf, dot);
-        strcat(doturlbuf, urlbuf);
-        printf(MSGTERM "doturlbuf: %s" MSGTERM "\n", doturlbuf);
+        strcat(dotURLbuf, ".");
+        strcat(dotURLbuf, urlBuf);
+        printf(MSGTERM "dotURLbuf: %s" MSGTERM "\n", dotURLbuf);
 
-        if (!strcmp(doturlbuf, "./")) {
+        if (!strcmp(dotURLbuf, "./")) {
             printf(MSGTERM "DEFAULT WEBPAGE" MSGNORM "\n");
             fp = fopen("index.html", "rb");
 
@@ -154,13 +147,13 @@ void echo(int connfd) {
 
             strcpy(ftype, "html");
             printf(MSGTERM "ftype: %s" MSGNORM "\n", ftype);
-        } else if (fp = fopen(doturlbuf, "rb")) {
+        } else if (fp = fopen(dotURLbuf, "rb")) {
             printf(MSGSUCC "READING FILE" MSGNORM "\n");
             fseek(fp, 0L, SEEK_END);
             n = ftell(fp);
             rewind(fp);
             printf(MSGSUCC "FILE READ" MSGNORM "\n");
-            strcpy(ftype, fnameExtension(urlbuf));
+            strcpy(ftype, fnameExtension(urlBuf));
             printf(MSGTERM "ftype: %s" MSGNORM "\n", ftype);
         } else {
             printf(MSGERRR "FILE DOES NOT EXIST" MSGNORM "\n");
@@ -220,13 +213,12 @@ void echo(int connfd) {
 
     // clear variables
     bzero(buf, MAXLINE);
-    bzero(metbuf, SHORTBUF);
-    bzero(urlbuf, MAXLINE);
-    bzero(doturlbuf, MAXLINE);
-    bzero(verbuf, SHORTBUF);
+    bzero(metBuf, SHORTBUF);
+    bzero(urlBuf, MAXLINE);
+    bzero(dotURLbuf, MAXLINE);
+    bzero(verBuf, SHORTBUF);
     bzero(ftype, SHORTBUF);
     bzero(contentType, SHORTBUF);
-    bzero(tempstr, MAXLINE);
 }
 
 // fix filenames where necessary
