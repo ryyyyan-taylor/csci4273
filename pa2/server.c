@@ -23,18 +23,24 @@
 #define MAXBUF   8192  /* max I/O buffer size */
 #define LISTENQ  1024  /* second argument to listen() */
 
+
+// colored outputs for the server operations
 #define MSGERRR "\x1b[31m"
 #define MSGSUCC "\x1b[32m"
 #define MSGNORM "\x1b[0m"
 #define MSGTERM "\x1b[35m"
 #define MSGWARN "\x1b[33m"
 
+
+// opening function declarations
 int open_listenfd(int port);
 void echo(int connfd);
 void *thread(void *vargp);
-int is_valid_URL(const char *urlarg);
-int is_valid_VER(const char *verarg);
-const char *get_fname_ext(const char *fname);
+
+//
+int checkValidURL(const char *urlarg);
+int checkValidVER(const char *verarg);
+const char *fnameExtension(const char *fname);
 
 
 int main(int argc, char **argv) {
@@ -69,7 +75,6 @@ void *thread(void *vargp) {
 }
 
 
-
 void echo(int connfd) {
     size_t n;
     char buf[MAXLINE];
@@ -78,14 +83,14 @@ void echo(int connfd) {
     char doturlbuf[MAXLINE];
     char verbuf[SHORTBUF];
     char ftype[SHORTBUF];
-    char contenttype[SHORTBUF];
+    char contentType[SHORTBUF];
     char tempstr[MAXLINE];
     char *dot = ".";
     char httpmsggiven[] = "HTTP/1.1 200 Document Follows\r\nContent-Type:text/html\r\nContent-Length:32\r\n\r\n<html><h1>Hello CSCI4273 Course!</h1>";
-    int is_error500 = 0;
+    int error500 = 0;
     char error500msg[] = "HTTP/1.1 500 Internal Server Error\r\nContent-Type:text/plain\r\nContent-Length:0\r\n\r\n";
-    int is_validurl = 0;
-    int is_validver = 0;
+    int validURL = 0;
+    int validVER = 0;
 
     bzero(buf, MAXLINE);
     bzero(metbuf, SHORTBUF);
@@ -93,7 +98,7 @@ void echo(int connfd) {
     bzero(doturlbuf, MAXLINE);
     bzero(verbuf, SHORTBUF);
     bzero(ftype, SHORTBUF);
-    bzero(contenttype, SHORTBUF);
+    bzero(contentType, SHORTBUF);
     bzero(tempstr, MAXLINE);
 
     n = read(connfd, buf, MAXLINE);
@@ -115,26 +120,23 @@ void echo(int connfd) {
     bzero(buf, MAXLINE);
 
     printf(MSGSUCC "GETTING FILE" MSGNORM "\n");
-
     FILE *fp = NULL;
 
-    if (is_valid_VER(verbuf))
-        is_validver = 1;
-
+    if (checkValidVER(verbuf))
+        validVER = 1;
     else {
-        is_validver = 0;
-        is_error500 = 1;
+        validVER = 0;
+        error500 = 1;
     }
 
-    if (is_valid_URL(urlbuf))
-        is_validurl = 1;
-
+    if (checkValidURL(urlbuf))
+        validURL = 1;
     else {
-        is_validurl = 0;
-        is_error500 = 1;
+        validURL = 0;
+        error500 = 1;
     }
 
-    if (is_validurl && is_validver) {
+    if (validURL && validVER) {
         printf(MSGTERM "VALID URL AND VERSION" MSGNORM "\n");
         strcat(doturlbuf, dot);
         strcat(doturlbuf, urlbuf);
@@ -143,11 +145,13 @@ void echo(int connfd) {
         if (!strcmp(doturlbuf, "./")) {
             printf(MSGTERM "DEFAULT WEBPAGE" MSGNORM "\n");
             fp = fopen("index.html", "rb");
+
             printf(MSGSUCC "READING FILE" MSGNORM "\n");
             fseek(fp, 0L, SEEK_END);
             n = ftell(fp);
             rewind(fp);
             printf(MSGSUCC "FILE READ" MSGNORM "\n");
+
             strcpy(ftype, "html");
             printf(MSGTERM "ftype: %s" MSGNORM "\n", ftype);
         } else if (fp = fopen(doturlbuf, "rb")) {
@@ -156,51 +160,39 @@ void echo(int connfd) {
             n = ftell(fp);
             rewind(fp);
             printf(MSGSUCC "FILE READ" MSGNORM "\n");
-            strcpy(ftype, get_fname_ext(urlbuf));
+            strcpy(ftype, fnameExtension(urlbuf));
             printf(MSGTERM "ftype: %s" MSGNORM "\n", ftype);
         } else {
             printf(MSGERRR "FILE DOES NOT EXIST" MSGNORM "\n");
-            is_error500 = 1;
+            error500 = 1;
         }
 
-        if (is_error500 == 0) {
-            if (!strcmp(ftype, "html")) {
-                /* set new ftype to text/html */
-                strcpy(contenttype, "text/html");
-            } else if (!strcmp(ftype, "txt")) {
-                /* set new ftype to text/plain */
-                printf(MSGTERM "TXT FILETYPE" MSGNORM "\n");
-                strcpy(contenttype, "text/plain");
-            } else if (!strcmp(ftype, "png")) {
-                /* set new ftype to image/png */
-                printf(MSGTERM "PNG FILETYPE" MSGNORM "\n");
-                strcpy(contenttype, "image/png");
-            } else if (!strcmp(ftype, "gif")) {
-                /* set new ftype to image/gif */
-                printf(MSGTERM "GIF FILETYPE" MSGNORM "\n");
-                strcpy(contenttype, "image/gif");
-            } else if (!strcmp(ftype, "jpg")) {
-                /* set new ftype to image/jpg */
-                printf(MSGTERM "JPG FILETYPE" MSGNORM "\n");
-                strcpy(contenttype, "image/jpg");
-            } else if (!strcmp(ftype, "css")) {
-                /* set new ftype to text/css */
-                printf(MSGTERM "CSS FILETYPE" MSGNORM "\n");
-                strcpy(contenttype, "text/css");
-            } else if (!strcmp(ftype, "js")) {
-                /* set new ftype to application/java */
-                printf(MSGTERM "JS FILETYPE" MSGNORM "\n");
-                strcpy(contenttype, "application/java");
-            } else
-                printf(MSGERRR "NOT A VALID FILETYPE" MSGNORM "\n");
+        // if no error
+        if (error500 == 0) {
+            // http
+            if (!strcmp(ftype, "html")) strcpy(contentType, "text/html");
+            //txt
+            else if (!strcmp(ftype, "txt")) strcpy(contentType, "text/plain");
+            // png
+            else if (!strcmp(ftype, "png")) strcpy(contentType, "image/png");
+            // gif
+            else if (!strcmp(ftype, "gif")) strcpy(contentType, "image/gif");
+            // jpf
+            else if (!strcmp(ftype, "jpg")) strcpy(contentType, "image/jpg");
+            // css
+            else if (!strcmp(ftype, "css")) strcpy(contentType, "text/css");
+            // javascript
+            else if (!strcmp(ftype, "js")) strcpy(contentType, "application/java");
+            // default
+            else printf(MSGERRR "NOT A VALID FILETYPE" MSGNORM "\n");
 
-            printf(MSGTERM "content type: %s" MSGNORM "\n", contenttype);
+            printf(MSGTERM "content requested: %s" MSGNORM "\n", contentType);
 
             char *filebuff = malloc(n);
             fread(filebuff, 1, n, fp);
 
             char tempbuff[MAXLINE];
-            sprintf(tempbuff, "HTTP/1.1 200 Document Follows\r\nContent-Type:%s\r\nContent-Length:%ld\r\n\r\n", contenttype, n);
+            sprintf(tempbuff, "HTTP/1.1 200 Document Follows\r\nContent-Type:%s\r\nContent-Length:%ld\r\n\r\n", contentType, n);
 
             char *httpmsg = malloc(n + strlen(tempbuff));
             printf(MSGTERM "httpmsg: %s" MSGNORM "\n", httpmsg);
@@ -210,12 +202,15 @@ void echo(int connfd) {
 
             //printf(MSGTERM"server returning a http message with the following content.\n%s" MSGNORM "\n", httpmsg);
             write(connfd, httpmsg, n);
+
+        // if found error
         } else {
-            /* file doesnt exist or something, have server ignore */
             printf(MSGERRR "SENDING ERROR MESSAGE" MSGNORM "\n");
             n = strlen(error500msg);
             write(connfd, error500msg, n);
         }
+
+    // default for invalid url or ver
     } else {
         printf(MSGERRR "NOT VALID" MSGNORM "\n");
         printf(MSGERRR "SENDING ERROR MESSAGE" MSGNORM "\n");
@@ -223,17 +218,19 @@ void echo(int connfd) {
         write(connfd, error500msg, n);
     }
 
+    // clear variables
     bzero(buf, MAXLINE);
     bzero(metbuf, SHORTBUF);
     bzero(urlbuf, MAXLINE);
     bzero(doturlbuf, MAXLINE);
     bzero(verbuf, SHORTBUF);
     bzero(ftype, SHORTBUF);
-    bzero(contenttype, SHORTBUF);
+    bzero(contentType, SHORTBUF);
     bzero(tempstr, MAXLINE);
 }
 
-const char *get_fname_ext(const char *fname) {
+// fix filenames where necessary
+const char *fnameExtension(const char *fname) {
     const char *period = strrchr(fname, '.');
 
     if (!period || period == fname)
@@ -242,7 +239,7 @@ const char *get_fname_ext(const char *fname) {
     return period + 1;
 }
 
-int is_valid_URL(const char *urlarg) {
+int checkValidURL(const char *urlarg) {
     int len_urlarg = strlen(urlarg);
 
     if ((urlarg != NULL) && (urlarg[0] == '\0')) {
@@ -252,20 +249,18 @@ int is_valid_URL(const char *urlarg) {
         return 1;
 }
 
-int is_valid_VER(const char *verarg) {
+int checkValidVER(const char *verarg) {
+    
     if (strlen(verarg) == 0) return 0;
 
     if ((verarg != NULL) && (verarg[0] == '\0')) {
         printf("verarg is empty\n");
         return 0;
-    } else if (strcmp(verarg, "HTTP/1.1") == 0)
+    }
+    else if (strcmp(verarg, "HTTP/1.1") == 0 || strcmp(verarg, "HTTP/1.0") == 0)
         return 1;
-
-    else if (strcmp(verarg, "HTTP/1.0") == 0)
-        return 1;
-
-    else
-        return 0;
+    // default
+    else return 0;
 }
 
 /*
