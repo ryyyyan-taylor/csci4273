@@ -6,7 +6,9 @@ Programming Assignment 2
 # PA2 - HTTP Web Server
 
 ## Building
-- provided in the root directory is a makefile, simply run ```make``` from the root to build the ```server``` file
+- provided in the ```www/``` directory is a makefile, simply run ```make``` to build the ```server``` binary
+- if needed, run ```make clean``` to remove the server binary
 
 ## Running
 - from the ```www/``` directory, run ```../server <port>```
+- navigate to ```localhost:<port>``` from any web browser to access the server

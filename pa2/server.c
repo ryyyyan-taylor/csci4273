@@ -1,3 +1,5 @@
+// Ryan Taylor
+// PA2 - HTTP Echo Server
 //  ___  ___ _ ____   _____ _ __ ___
 // / __|/ _ \ '__\ \ / / _ \ '__/ __|
 // \__ \  __/ |   \ V /  __/ | | (__
@@ -25,9 +27,9 @@
 
 
 // colored outputs for the server operations
-#define COLERR "\x1b[31m"
-#define COLSUCC "\x1b[32m"
-#define COLNORM "\x1b[0m"
+#define COLERRR "\x1b[31m"
+#define COLCONF "\x1b[32m"
+#define COLSTD "\x1b[0m"
 #define COLTERM "\x1b[35m"
 #define COLWARN "\x1b[33m"
 
@@ -37,31 +39,11 @@ int open_listenfd(int port);
 void echo(int connfd);
 void *thread(void *vargp);
 
+
 int checkValidURL(const char *urlarg);
 int checkValidVER(const char *verarg);
 const char *fnameExtension(const char *fname);
 
-
-int main(int argc, char **argv) {
-    int listenfd, *connfdp, port, clientlen = sizeof(struct sockaddr_in);
-    struct sockaddr_in clientaddr;
-    pthread_t tid;
-
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s <port>\n", argv[0]);
-        exit(0);
-    }
-
-    port = atoi(argv[1]);
-
-    listenfd = open_listenfd(port);
-
-    while (1) {
-        connfdp = malloc(sizeof(int));
-        *connfdp = accept(listenfd, (struct sockaddr *)&clientaddr, &clientlen);
-        pthread_create(&tid, NULL, thread, connfdp);
-    }
-}
 
 /* thread routine */
 void *thread(void *vargp) {
@@ -73,11 +55,11 @@ void *thread(void *vargp) {
     return NULL;
 }
 
-
+// main echo functionality
 void echo(int connfd) {
     
-    size_t n;
 
+    // initial declarations
     char buf[MAXLINE];
     char metBuf[SHORTBUF];
     char urlBuf[MAXLINE];
@@ -90,13 +72,25 @@ void echo(int connfd) {
     int validURL = 0;
     int validVER = 0;
 
-    char httpmsggiven[] = "HTTP/1.1 200 Document Follows\r\nContent-Type:text/html\r\nContent-Length:32\r\n\r\n<html><h1>Hello CSCI4273 Course!</h1>";
+    size_t n;
+
+    // clear variables just to be safe
+    // have run into issues when not cleared
+    bzero(buf, MAXLINE);
+    bzero(metBuf, SHORTBUF);
+    bzero(urlBuf, MAXLINE);
+    bzero(dotURLbuf, MAXLINE);
+    bzero(verBuf, SHORTBUF);
+    bzero(ftype, SHORTBUF);
+    bzero(contentType, SHORTBUF);
+
+    char httpmsggiven[] = "HTTP/1.1 200 Document Follows\r\nContent-Type:text/html\r\nContent-Length:32\r\n\r\n<html><h1>Test Message</h1>";
     char error500msg[] = "HTTP/1.1 500 Internal Server Error\r\nContent-Type:text/plain\r\nContent-Length:0\r\n\r\n";
 
     n = read(connfd, buf, MAXLINE);
-    printf(COLSUCC "server received request:\n%s" COLSUCC "\n", buf);
+    printf(COLCONF "server received request:\n%s" COLCONF "\n", buf);
 
-    printf(COLWARN "PARSING" COLNORM "\n");
+    printf(COLWARN "Parsing Request" COLSTD "\n");
     char *token1 = strtok(buf, " ");
     size_t tk1len = strlen(token1);
     strncpy(metBuf, token1, tk1len);
@@ -111,7 +105,7 @@ void echo(int connfd) {
 
     bzero(buf, MAXLINE);
 
-    printf(COLSUCC "FILE GET" COLNORM "\n");
+    printf(COLCONF "Getting File" COLSTD "\n");
     FILE *fp = NULL;
 
     if (checkValidVER(verBuf))
@@ -129,39 +123,38 @@ void echo(int connfd) {
     }
 
     if (validURL && validVER) {
-        printf(COLTERM "VALID URL AND VERSION" COLNORM "\n");
+        printf(COLTERM "Valid URL and VER from client" COLSTD "\n");
         strcat(dotURLbuf, ".");
         strcat(dotURLbuf, urlBuf);
         printf(COLTERM "dotURLbuf: %s" COLTERM "\n", dotURLbuf);
 
         if (!strcmp(dotURLbuf, "./")) {
-            printf(COLTERM "DEFAULT WEBPAGE" COLNORM "\n");
+            printf(COLTERM "Serving default webpage" COLSTD "\n");
             fp = fopen("index.html", "rb");
 
-            printf(COLSUCC "READING FILE" COLNORM "\n");
+            printf(COLCONF "Reading file" COLSTD "\n");
             fseek(fp, 0L, SEEK_END);
             n = ftell(fp);
             rewind(fp);
-            printf(COLSUCC "FILE READ" COLNORM "\n");
+            printf(COLCONF "File read" COLSTD "\n");
 
             strcpy(ftype, "html");
-            printf(COLTERM "ftype: %s" COLNORM "\n", ftype);
+            printf(COLTERM "ftype: %s" COLSTD "\n", ftype);
         } else if (fp = fopen(dotURLbuf, "rb")) {
-            printf(COLSUCC "READING FILE" COLNORM "\n");
+            printf(COLCONF "Reading file" COLSTD "\n");
             fseek(fp, 0L, SEEK_END);
             n = ftell(fp);
             rewind(fp);
-            printf(COLSUCC "FILE READ" COLNORM "\n");
+            printf(COLCONF "File read" COLSTD "\n");
             strcpy(ftype, fnameExtension(urlBuf));
-            printf(COLTERM "ftype: %s" COLNORM "\n", ftype);
+            printf(COLTERM "ftype: %s" COLSTD "\n", ftype);
         } else {
-            printf(COLERR "FILE DOES NOT EXIST" COLNORM "\n");
+            printf(COLERRR "File DNE" COLSTD "\n");
             error500 = 1;
         }
 
         // if no error
         if (error500 == 0) {
-            // load correct file type
             // http
             if (!strcmp(ftype, "html")) strcpy(contentType, "text/html");
             //txt
@@ -170,16 +163,16 @@ void echo(int connfd) {
             else if (!strcmp(ftype, "png")) strcpy(contentType, "image/png");
             // gif
             else if (!strcmp(ftype, "gif")) strcpy(contentType, "image/gif");
-            // jpg
+            // jpf
             else if (!strcmp(ftype, "jpg")) strcpy(contentType, "image/jpg");
             // css
             else if (!strcmp(ftype, "css")) strcpy(contentType, "text/css");
             // javascript
             else if (!strcmp(ftype, "js")) strcpy(contentType, "application/java");
             // default
-            else printf(COLERR "NOT A VALID FILETYPE" COLNORM "\n");
+            else printf(COLERRR "Possible invalid filetype" COLSTD "\n");
 
-            printf(COLTERM "content requested: %s" COLNORM "\n", contentType);
+            printf(COLTERM "content requested: %s" COLSTD "\n", contentType);
 
             char *filebuff = malloc(n);
             fread(filebuff, 1, n, fp);
@@ -188,28 +181,38 @@ void echo(int connfd) {
             sprintf(tempbuff, "HTTP/1.1 200 Document Follows\r\nContent-Type:%s\r\nContent-Length:%ld\r\n\r\n", contentType, n);
 
             char *httpmsg = malloc(n + strlen(tempbuff));
-            printf(COLTERM "httpmsg: %s" COLNORM "\n", httpmsg);
+            printf(COLTERM "httpmsg: %s" COLSTD "\n", httpmsg);
             sprintf(httpmsg, "%s", tempbuff);
             memcpy(httpmsg + strlen(tempbuff), filebuff, n);
             n += strlen(tempbuff);
 
-            //printf(COLTERM"server returning a http message with the following content.\n%s" COLNORM "\n", httpmsg);
+            //printf(COLTERM"server returning a http message with the following content.\n%s" COLSTD "\n", httpmsg);
             write(connfd, httpmsg, n);
 
         // if found error
         } else {
-            printf(COLERR "SENDING ERROR MESSAGE" COLNORM "\n");
+            printf(COLERRR "Error message" COLSTD "\n");
             n = strlen(error500msg);
             write(connfd, error500msg, n);
         }
 
     // default for invalid url or ver
     } else {
-        printf(COLERR "NOT VALID" COLNORM "\n");
-        printf(COLERR "SENDING ERROR MESSAGE" COLNORM "\n");
+        printf(COLERRR "Invalid" COLSTD "\n");
+        printf(COLERRR "Error message" COLSTD "\n");
         n = strlen(error500msg);
         write(connfd, error500msg, n);
     }
+
+    // clear variables just to be safe
+    // have run into issues when not cleared
+    bzero(buf, MAXLINE);
+    bzero(metBuf, SHORTBUF);
+    bzero(urlBuf, MAXLINE);
+    bzero(dotURLbuf, MAXLINE);
+    bzero(verBuf, SHORTBUF);
+    bzero(ftype, SHORTBUF);
+    bzero(contentType, SHORTBUF);
 }
 
 // fix filenames where necessary
@@ -226,7 +229,7 @@ int checkValidURL(const char *urlarg) {
     int len_urlarg = strlen(urlarg);
 
     if ((urlarg != NULL) && (urlarg[0] == '\0')) {
-        printf("urlarg is empty\n");
+        printf("empty urlarg\n");
         return 0;
     } else
         return 1;
@@ -237,7 +240,7 @@ int checkValidVER(const char *verarg) {
     if (strlen(verarg) == 0) return 0;
 
     if ((verarg != NULL) && (verarg[0] == '\0')) {
-        printf("verarg is empty\n");
+        printf("empty verarg\n");
         return 0;
     }
     else if (strcmp(verarg, "HTTP/1.1") == 0 || strcmp(verarg, "HTTP/1.0") == 0)
@@ -279,3 +282,24 @@ int open_listenfd(int port) {
 
     return listenfd;
 } /* end open_listenfd */
+
+int main(int argc, char **argv) {
+    int listenfd, *connfdp, port, clientlen = sizeof(struct sockaddr_in);
+    struct sockaddr_in clientaddr;
+    pthread_t tid;
+
+    if (argc != 2) {
+        fprintf(stderr, "usage: %s <port>\n", argv[0]);
+        exit(0);
+    }
+
+    port = atoi(argv[1]);
+
+    listenfd = open_listenfd(port);
+
+    while (1) {
+        connfdp = malloc(sizeof(int));
+        *connfdp = accept(listenfd, (struct sockaddr *)&clientaddr, &clientlen);
+        pthread_create(&tid, NULL, thread, connfdp);
+    }
+}
