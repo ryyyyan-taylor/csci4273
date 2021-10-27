@@ -6,6 +6,7 @@ Programming Assignment 2
 # PA2 - HTTP Web Server
 
 ## Building
+<<<<<<< HEAD
 - provided in the ```www/``` directory is a makefile, simply run ```make``` to build the ```server``` binary
 - if needed, run ```make clean``` to remove the server binary
 
