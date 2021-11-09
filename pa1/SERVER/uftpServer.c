@@ -109,6 +109,7 @@ int main(int argc, char** argv) {
 		sscanf(buf, "%s %s", cmd, fname);
 
 
+		// start new stuff
 		// GET
 		if (!strncmp(cmd, "get", 3)) {
 			bzero(buf, sizeof(buf));
