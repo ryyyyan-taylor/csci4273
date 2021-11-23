@@ -70,6 +70,7 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
+  // socket on given port
   port = atoi(argv[1]);
   listenfd = open_listenfd(port);
 
@@ -78,7 +79,6 @@ int main(int argc, char **argv) {
     printf("Cannot init mutex\n");
     return -1;
   }
-
   // cache mutex lock
   if (pthread_mutex_init(&cache_lock, NULL) != 0) {
     printf("Cannot init mutex\n");

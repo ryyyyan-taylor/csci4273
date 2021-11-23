@@ -18,7 +18,7 @@ Fall 2021
 
 
 ## Possible Tests
-- enter telnet on localhost then run ```GET http://netsys.cs.colorado.edu HTTP/1.0```
+- run the command ```telnet localhost <port>``` then run ```GET http://netsys.cs.colorado.edu HTTP/1.0```
 	- this should return the entire HTML index file for the sample HTTP page
 	- the server will return all the necessary information it retrieves
 - set your web browser (methods vary) to use localhost as its proxy server and navigate to ```http://netsys.cs.colorado.edu```
