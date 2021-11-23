@@ -9,3 +9,4 @@ make: ./proxy.c
 
 clean:
 	rm proxy
+	rm -rf cache
