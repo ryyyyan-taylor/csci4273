@@ -1,10 +1,10 @@
 /* 
- ____                        ____
-|  _ \ _ __ _____  ___   _  / ___|  ___ _ ____   _____ _ __
-| |_) | '__/ _ \ \/ / | | | \___ \ / _ \ '__\ \ / / _ \ '__|
-|  __/| | | (_) >  <| |_| |  ___) |  __/ |   \ V /  __/ |
-|_|   |_|  \___/_/\_\\__, | |____/ \___|_|    \_/ \___|_|
-                     |___/
+ __        __   _
+ \ \      / /__| |__  _ __  _ __ _____  ___   _
+  \ \ /\ / / _ \ '_ \| '_ \| '__/ _ \ \/ / | | |
+   \ V  V /  __/ |_) | |_) | | | (_) >  <| |_| |
+    \_/\_/ \___|_.__/| .__/|_|  \___/_/\_\\__, |
+                     |_|                  |___/
 Ryan Taylor
 CSCI 4273 : Network Systems
 Fall 2021
@@ -33,13 +33,13 @@ Programming Assignment 3
 #define LISTENQ  1024  /* second argument to listen() */
 
 char cacheDNS[MAXLINE];
-pthread_mutex_t dns_lock;
-pthread_mutex_t cache_lock;
+pthread_mutex_t dnsMutex;
+pthread_mutex_t cacheMutex;
 int timeout;
 
 
 // defined helper functions
-void send_error(int connfd, char *msg);
+void sendError(int connfd, char *msg);
 int checkBlacklist(char *hostname, char *ip);
 int checkDNSCache(char *hostname, struct in_addr *cache_addr);
 int addIPToCache(char *hostname, char *ip);
@@ -74,17 +74,17 @@ int main(int argc, char **argv) {
   port = atoi(argv[1]);
   listenfd = open_listenfd(port);
 
-  // dns mutex lock
-  if (pthread_mutex_init(&dns_lock, NULL) != 0) {
+  // mutex creation for multithreading
+  if (pthread_mutex_init(&dnsMutex, NULL) != 0) {
     printf("Cannot init mutex\n");
     return -1;
   }
-  // cache mutex lock
-  if (pthread_mutex_init(&cache_lock, NULL) != 0) {
+  if (pthread_mutex_init(&cacheMutex, NULL) != 0) {
     printf("Cannot init mutex\n");
     return -1;
   }
 
+  // loop until quit
   while (1) {
     connfdp = malloc(sizeof(int));
     *connfdp = accept(listenfd, (struct sockaddr *)&clientaddr, &clientlen);
@@ -94,7 +94,8 @@ int main(int argc, char **argv) {
   printf("Broken out of while loop, quitting.\n");
 }
 
-/* thread routine */
+
+// actual driver, runs all necessary functions when thread created
 void *thread(void *vargp) {
   int connfd = *((int *)vargp);
   pthread_detach(pthread_self());
@@ -104,16 +105,18 @@ void *thread(void *vargp) {
   return NULL;
 }
 
-/* Sends specified error message back to server*/
-void send_error(int connfd, char *msg) {
+
+// error message handler to client
+void sendError(int connfd, char *msg) {
   char errormsg[MAXLINE];
   sprintf(errormsg, "HTTP/1.1 %s\r\nContent-Type:text/plain\r\nContent-Length:0\r\n\r\n", msg);
   write(connfd, errormsg, strlen(errormsg));
 }
 
+
 // check blacklisted hosts / ips
 int checkBlacklist(char *hostname, char *ip) {
-  FILE *fp;
+  FILE *blacklistFile;
   char line[100];
   char *newline;
 
@@ -123,13 +126,12 @@ int checkBlacklist(char *hostname, char *ip) {
     return 0;
   }
 
-  fp = fopen("blacklist", "r");
+  blacklistFile = fopen("blacklist", "r");
 
-  while (fgets(line, sizeof(line), fp)) {
+  while (fgets(line, sizeof(line), blacklistFile)) {
     newline = strchr(line, '\n');
+    if (newline != NULL) *newline = '\0';
 
-    if (newline != NULL)
-      *newline = '\0';
 
     if (strstr(line, hostname) || strstr(line, ip)) {
       printf("Blacklist match found: %s\n", line);
@@ -137,23 +139,23 @@ int checkBlacklist(char *hostname, char *ip) {
     }
   }
 
-  fclose(fp);
+  fclose(blacklistFile);
   printf("No blacklist match found\n");
   return 0;
 }
 
-/* Checks dns cache to see if hostname has been resolved before */
+
+// search in dns cache
 int checkDNSCache(char *hostname, struct in_addr *cache_addr) {
   printf("Checking for %s in cache!!!\n", hostname);
 
   char *line;
   char *tmpbuf = calloc(strlen(cacheDNS) + 1, sizeof(char));
-  strcpy(tmpbuf, cacheDNS); //Using strtok modifies original string, make a temp copy
+  strcpy(tmpbuf, cacheDNS);
 
   char *match = strstr(tmpbuf, hostname);
+  if (match == NULL) return -1;
 
-  if (match == NULL) // Hostname not in cache
-    return -1;
 
   line = strtok(match, ":");
   line = strtok(NULL, "\n");
@@ -162,10 +164,11 @@ int checkDNSCache(char *hostname, struct in_addr *cache_addr) {
   free(tmpbuf);
 }
 
+
 // add hostname and ip to cache
 int addIPToCache(char *hostname, char *ip) {
 
-  pthread_mutex_lock(&dns_lock);
+  pthread_mutex_lock(&dnsMutex);
   char *entry = strrchr(cacheDNS, '\n');
   char buf[100];
   memset(buf, 0, sizeof(buf));
@@ -174,17 +177,17 @@ int addIPToCache(char *hostname, char *ip) {
   if (entry == NULL) {
     printf("Cache empty\n");
     strncpy(cacheDNS, buf, strlen(buf));
-    pthread_mutex_unlock(&dns_lock);
+    pthread_mutex_unlock(&dnsMutex);
     return 0;
   }
 
   if (entry + strlen(buf) + 1 > cacheDNS + sizeof(cacheDNS)) { // Cache full
     return -1;
-    pthread_mutex_unlock(&dns_lock);
+    pthread_mutex_unlock(&dnsMutex);
   }
 
   strncpy(entry + 1, buf, strlen(buf));
-  pthread_mutex_unlock(&dns_lock);
+  pthread_mutex_unlock(&dnsMutex);
 }
 
 // Old md5 hash implementation I already had
@@ -201,15 +204,13 @@ void md5_hash(char *str, char *md5buf) {
   printf("Final hash: %s -> %s\n", str, md5buf);
 }
 
-/*
-Checks local cache based on md5 hash of file name
-returns 0 if not in cache or in cache but too old based on timeout, and 1 if in cache within timeout
-*/
+
+// check cache directory for md5 hash
 int checkMD5Cache(char *fname) {
+  
   struct stat file_stat;
   DIR *dir = opendir("./cache");
 
-  //sizeof("cache") includes null terminator, but it will be replace with '/'
   char buf[strlen("cache/") + strlen(fname)];
   memset(buf, 0, sizeof(buf));
   strcpy(buf, "cache/");
@@ -236,7 +237,7 @@ int checkMD5Cache(char *fname) {
     double diff = difftime(current_time, file_modify);
 
     if (diff > timeout) {
-      printf("Timeout occurred: file was modified %.2f seconds ago, timeout is %d\n", diff, timeout);
+      printf("Timeout passed: file was modified %.2f seconds ago, timeout is %d\n", diff, timeout);
       return 0;
     }
 
@@ -254,7 +255,8 @@ int checkMD5Cache(char *fname) {
   }
 }
 
-/* Sends file to client from local cache */
+
+// send file to client out of cache
 void sendFromCache(int connfd, char *fname) {
   FILE *f = fopen(fname, "rb");
 
@@ -271,6 +273,8 @@ void sendFromCache(int connfd, char *fname) {
   write(connfd, file_buf, fsize);
 }
 
+
+// echo content to client
 void echo(int connfd) {
   size_t n;
   char buf[MAXLINE];
@@ -283,9 +287,9 @@ void echo(int connfd) {
   n = read(connfd, buf, MAXLINE);
   printf("\nServer received a request\n");
 
-  char *request = strtok(buf, " "); // GET or POST
+  char *request = strtok(buf, " ");
   char *hostname = strtok(NULL, " ");
-  char *version = strtok(NULL, "\r"); // HTTP/1.1 or HTTP/1.0
+  char *version = strtok(NULL, "\r");
   char fname[MAXLINE];
 
   printf("Request type: %s\nHostname: %s\nVersion: %s\n", request, hostname, version);
@@ -293,14 +297,14 @@ void echo(int connfd) {
   // null hostname
   if (hostname == NULL || version == NULL) {
     printf("Hostname or version is NULL\n");
-    send_error(connfd, "500 Internal Server Error");
+    sendError(connfd, "500 Internal Server Error");
     return;
   }
 
   // no hostname
   if (strlen(hostname) == 0) {
     printf("No host requested, responding with error\n");
-    send_error(connfd, "500 Internal Server Error");
+    sendError(connfd, "500 Internal Server Error");
     return;
   }
 
@@ -308,7 +312,7 @@ void echo(int connfd) {
   if (!strcmp(version, "HTTP/1.1") || !strcmp(version, "HTTP/1.0")) {
   } else {
     printf("Invalid HTTP version: %s\nResponding with error\n", version);
-    send_error(connfd, "500 Internal Server Error");
+    sendError(connfd, "500 Internal Server Error");
     return;
   }
 
@@ -316,7 +320,7 @@ void echo(int connfd) {
   if (!strcmp(request, "GET")) {
   } else {
     printf("Invalid HTTP request: %s\nResponding with 400 error\n", request);
-    send_error(connfd, "400 Bad Request");
+    sendError(connfd, "400 Bad Request");
     return;
   }
 
@@ -339,7 +343,7 @@ void echo(int connfd) {
   // clean string for DNS processing
   if (slash != NULL) *slash = '\0';
 
-  char md5_input[strlen(hostname) + strlen(fname) + 2]; //2 extra bytes for slash between hostname and filename, and null terminator
+  char md5_input[strlen(hostname) + strlen(fname) + 2];
   strcpy(md5_input, hostname);
   strcat(md5_input, "/");
   strcat(md5_input, fname);
@@ -379,7 +383,7 @@ void echo(int connfd) {
 
     if (server == NULL) {
       printf("Unable to resolve host %s, responding with 404 error\n", hostname);
-      send_error(connfd, "404 Not Found");
+      sendError(connfd, "404 Not Found");
       return;
     }
 
@@ -408,7 +412,7 @@ void echo(int connfd) {
 
   // if blacklisted 
   if (checkBlacklist(hostname, IPbuf)) {
-    send_error(connfd, "403 Forbidden");
+    sendError(connfd, "403 Forbidden");
     return;
   }
 
@@ -432,9 +436,9 @@ void echo(int connfd) {
   int total_size = 0;
   memset(buf, 0, sizeof(buf));
 
-  FILE *fp;
-  fp = fopen(cache_buf, "wb");
-  pthread_mutex_lock(&cache_lock);
+  FILE *blacklistFile;
+  blacklistFile = fopen(cache_buf, "wb");
+  pthread_mutex_lock(&cacheMutex);
 
   while ((size = read(sockfd, buf, sizeof(buf))) > 0) {
     if (size < 0) { // error catching
@@ -445,12 +449,12 @@ void echo(int connfd) {
     total_size += size;
 
     write(connfd, buf, size);
-    fwrite(buf, 1, size, fp);
+    fwrite(buf, 1, size, blacklistFile);
     memset(buf, 0, sizeof(buf));
   }
 
-  pthread_mutex_unlock(&cache_lock);
-  fclose(fp);
+  pthread_mutex_unlock(&cacheMutex);
+  fclose(blacklistFile);
 
   if (size == -1) { // error catching
     printf("Error in read - errno:%d\n", errno);
@@ -459,6 +463,7 @@ void echo(int connfd) {
 
   printf("received a total of %d bytes\n", total_size);
 }
+
 
 /*
  * open_listenfd - open and return a listening socket on port

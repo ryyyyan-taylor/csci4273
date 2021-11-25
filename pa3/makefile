@@ -5,9 +5,9 @@
 # |_|  |_|\__,_|_|\_\___|_| |_|_|\___|
 #
 
-make: ./proxy.c
-	gcc proxy.c -pthread -lcrypto -o proxy
+make: ./webproxy.c
+	gcc webproxy.c -pthread -lcrypto -o proxy
 
 clean:
-	rm proxy
+	rm webproxy
 	rm -rf cache
