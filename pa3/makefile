@@ -6,8 +6,7 @@
 #
 
 make: ./webproxy.c
-	gcc webproxy.c -pthread -lcrypto -o proxy
-
+	gcc webproxy.c -pthread -lcrypto -o webproxy
 clean:
 	rm webproxy
 	rm -rf cache
